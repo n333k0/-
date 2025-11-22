@@ -15,112 +15,134 @@ const PiVisualizer: React.FC<PiVisualizerProps> = ({ progress }) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const updateSize = () => {
-      // Use a large portion of the viewport, but keep padding
-      const size = Math.min(window.innerWidth, window.innerHeight) * 0.9; 
+    let animationFrameId: number;
+
+    const render = () => {
+      const size = Math.min(window.innerWidth, window.innerHeight) * 0.85;
       const dpr = window.devicePixelRatio || 1;
       
-      canvas.width = size * dpr;
-      canvas.height = size * dpr;
-      canvas.style.width = `${size}px`;
-      canvas.style.height = `${size}px`;
-      
-      ctx.scale(dpr, dpr);
-      
-      draw(ctx, size);
-    };
+      // Handle resize
+      if (canvas.width !== size * dpr || canvas.height !== size * dpr) {
+          canvas.width = size * dpr;
+          canvas.height = size * dpr;
+          canvas.style.width = `${size}px`;
+          canvas.style.height = `${size}px`;
+          ctx.scale(dpr, dpr);
+      }
 
-    const draw = (context: CanvasRenderingContext2D, size: number) => {
       const centerX = size / 2;
       const centerY = size / 2;
-      const radius = (size / 2) - 10;
+      const radius = (size / 2) - 20;
 
       // Clear
-      context.clearRect(0, 0, size, size);
+      ctx.clearRect(0, 0, size, size);
 
-      // Draw Outer Circle (very faint)
-      context.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-      context.lineWidth = 1;
-      context.beginPath();
-      context.arc(centerX, centerY, radius, 0, Math.PI * 2);
-      context.stroke();
-
-      // Animation Logic
-      // 1 radian steps.
-      // Max iterations ~ 1000 to 2000 creates the nice dense shape.
-      const maxIterations = 2500; 
+      // 1. Draw Central Pi Symbol
+      // Fades out as the complexity increases
+      const piOpacity = Math.max(0, 1 - Math.pow(progress * 4, 1.5));
       
-      // Non-linear progress for dramatic effect
-      // Starts slow then speeds up
-      const easedProgress = progress === 0 ? 0 : Math.pow(progress, 1.5);
-      const currentIterations = Math.floor(easedProgress * maxIterations);
-      
-      if (currentIterations < 1) return;
-
-      context.lineWidth = 0.8; // Thin, crisp lines
-      context.lineJoin = 'round';
-      context.lineCap = 'round';
-      
-      context.beginPath();
-      
-      // Start at angle 0
-      let prevX = centerX + radius * Math.cos(0);
-      let prevY = centerY + radius * Math.sin(0);
-      context.moveTo(prevX, prevY);
-
-      // Optimization: Batch paths to avoid too many draw calls, but for < 3000 points, single path is fine.
-      // However, we want to change opacity based on iteration count to avoid blown out white immediately.
-      
-      // For the "Brutalist" look, uniform white lines are actually better than fading ones
-      // but we lower the global alpha.
-      context.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-
-      for (let i = 1; i <= currentIterations; i++) {
-        // The walk is simple: angle = i * 1 radian
-        const angle = i; 
-        const x = centerX + radius * Math.cos(angle);
-        const y = centerY + radius * Math.sin(angle);
-        
-        context.lineTo(x, y);
+      if (piOpacity > 0.01) {
+        ctx.save();
+        ctx.globalAlpha = piOpacity;
+        ctx.fillStyle = '#ffffff';
+        // Elegant serif font
+        ctx.font = `italic ${size * 0.25}px "Times New Roman", serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        // Slight offset for visual center of the glyph
+        ctx.fillText('π', centerX, centerY + (size * 0.01));
+        ctx.restore();
       }
-      context.stroke();
 
-      // Highlight the current "head"
-      if (currentIterations > 0) {
-        const lastAngle = currentIterations;
-        const headX = centerX + radius * Math.cos(lastAngle);
-        const headY = centerY + radius * Math.sin(lastAngle);
+      // 2. Draw Outer Circle Halo
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+      ctx.stroke();
 
-        // Draw the connecting line from previous to current brighter
-        if (currentIterations > 1) {
-            const prevAngle = currentIterations - 1;
-            const pX = centerX + radius * Math.cos(prevAngle);
-            const pY = centerY + radius * Math.sin(prevAngle);
-            
-            context.beginPath();
-            context.moveTo(pX, pY);
-            context.lineTo(headX, headY);
-            context.strokeStyle = '#ffffff';
-            context.lineWidth = 2;
-            context.stroke();
+      // 3. The Walk
+      // We need enough iterations to fill the circle visually
+      const maxIterations = 5000; 
+      // Smooth out the count
+      const count = Math.floor(progress * maxIterations);
+
+      if (count > 0) {
+        ctx.save();
+        // Blend mode for accumulating brightness where lines overlap
+        ctx.globalCompositeOperation = 'screen';
+        
+        // The lines get thinner as they get more numerous to avoid whiteout
+        const opacity = Math.max(0.1, 0.6 - (count / maxIterations) * 0.4);
+        ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
+        ctx.lineWidth = size < 500 ? 0.5 : 0.8;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+
+        ctx.beginPath();
+        
+        // Optimization: calculate points
+        // Start at Angle 0
+        let startX = centerX + radius;
+        let startY = centerY;
+        ctx.moveTo(startX, startY);
+
+        // Draw the path
+        for (let i = 1; i <= count; i++) {
+           const angle = i; // 1 radian step
+           const px = centerX + radius * Math.cos(angle);
+           const py = centerY + radius * Math.sin(angle);
+           ctx.lineTo(px, py);
         }
+        ctx.stroke();
+        ctx.restore();
 
-        // The Point
-        context.fillStyle = '#ffffff';
-        context.beginPath();
-        context.arc(headX, headY, 4, 0, Math.PI * 2);
-        context.fill();
+        // 4. The Leader Point (The "Pen")
+        // Draw the active head of the line brighter
+        if (count > 0) {
+           const headAngle = count;
+           const hx = centerX + radius * Math.cos(headAngle);
+           const hy = centerY + radius * Math.sin(headAngle);
+           
+           // Draw a line from the previous point to the head with high opacity
+           if (count > 1) {
+               const prevAngle = count - 1;
+               const px = centerX + radius * Math.cos(prevAngle);
+               const py = centerY + radius * Math.sin(prevAngle);
+               
+               ctx.beginPath();
+               ctx.moveTo(px, py);
+               ctx.lineTo(hx, hy);
+               ctx.strokeStyle = '#ffffff';
+               ctx.lineWidth = 1.5;
+               ctx.stroke();
+           }
+
+           // Glowing dot
+           ctx.fillStyle = '#ffffff';
+           ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
+           ctx.shadowBlur = 10;
+           ctx.beginPath();
+           ctx.arc(hx, hy, 3, 0, Math.PI * 2);
+           ctx.fill();
+           ctx.shadowBlur = 0;
+        }
       }
     };
 
-    updateSize();
-    window.addEventListener('resize', updateSize);
-    return () => window.removeEventListener('resize', updateSize);
+    // Use requestAnimationFrame for smooth updates during scroll
+    const tick = () => {
+        render();
+        animationFrameId = requestAnimationFrame(tick);
+    };
+    tick();
+
+    return () => cancelAnimationFrame(animationFrameId);
   }, [progress]);
 
   return (
-    <div ref={containerRef} className="flex items-center justify-center w-full h-full relative">
-        <canvas ref={canvasRef} className="z-10" />
+    <div ref={containerRef} className="flex items-center justify-center w-full h-full">
+        <canvas ref={canvasRef} className="z-10 block" />
     </div>
   );
 };
