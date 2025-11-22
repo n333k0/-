@@ -10,15 +10,14 @@ const PiVisualizer: React.FC<PiVisualizerProps> = ({ progress }) => {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
+    if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const updateSize = () => {
-      // Make it responsive but keep it square-ish or fit within viewport
-      const size = Math.min(window.innerWidth, window.innerHeight) * 0.8; 
+      // Use a large portion of the viewport, but keep padding
+      const size = Math.min(window.innerWidth, window.innerHeight) * 0.9; 
       const dpr = window.devicePixelRatio || 1;
       
       canvas.width = size * dpr;
@@ -28,107 +27,99 @@ const PiVisualizer: React.FC<PiVisualizerProps> = ({ progress }) => {
       
       ctx.scale(dpr, dpr);
       
-      // Redraw immediately on resize
       draw(ctx, size);
     };
 
     const draw = (context: CanvasRenderingContext2D, size: number) => {
       const centerX = size / 2;
       const centerY = size / 2;
-      const radius = (size / 2) - 20; // Padding
+      const radius = (size / 2) - 10;
 
       // Clear
       context.clearRect(0, 0, size, size);
 
-      // Draw Base Circle
-      context.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+      // Draw Outer Circle (very faint)
+      context.strokeStyle = 'rgba(255, 255, 255, 0.1)';
       context.lineWidth = 1;
       context.beginPath();
       context.arc(centerX, centerY, radius, 0, Math.PI * 2);
       context.stroke();
 
       // Animation Logic
-      // We want to show lines connecting points stepped by 1 radian.
-      // 1 radian = radius length along circumference.
-      // Max iterations to fully fill nicely ~ 2000 lines
-      const maxIterations = 1500;
-      const currentIterations = Math.floor(progress * maxIterations);
+      // 1 radian steps.
+      // Max iterations ~ 1000 to 2000 creates the nice dense shape.
+      const maxIterations = 2500; 
       
-      // Optimization: If progress is 0, don't draw paths
+      // Non-linear progress for dramatic effect
+      // Starts slow then speeds up
+      const easedProgress = progress === 0 ? 0 : Math.pow(progress, 1.5);
+      const currentIterations = Math.floor(easedProgress * maxIterations);
+      
       if (currentIterations < 1) return;
 
-      context.lineWidth = 0.5;
-      // Use a lighter color for earlier iterations to create depth
-      // or just a solid semi-transparent white
-      context.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-
+      context.lineWidth = 0.8; // Thin, crisp lines
+      context.lineJoin = 'round';
+      context.lineCap = 'round';
+      
       context.beginPath();
       
+      // Start at angle 0
       let prevX = centerX + radius * Math.cos(0);
       let prevY = centerY + radius * Math.sin(0);
-      
-      // If we want to just draw lines from 0 to N
-      // The visual in the prompt looks like lines cutting across the circle.
-      // A walk of 1 radian:
-      // Point n is at angle n radians.
-      // Draw line from Point n-1 to Point n.
-      
-      // Start path
       context.moveTo(prevX, prevY);
 
+      // Optimization: Batch paths to avoid too many draw calls, but for < 3000 points, single path is fine.
+      // However, we want to change opacity based on iteration count to avoid blown out white immediately.
+      
+      // For the "Brutalist" look, uniform white lines are actually better than fading ones
+      // but we lower the global alpha.
+      context.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+
       for (let i = 1; i <= currentIterations; i++) {
-        const angle = i; // 1 radian step
+        // The walk is simple: angle = i * 1 radian
+        const angle = i; 
         const x = centerX + radius * Math.cos(angle);
         const y = centerY + radius * Math.sin(angle);
         
         context.lineTo(x, y);
-        
-        // Optional: visual flair - add a tiny dot at the head if it's the very last point
-        if (i === currentIterations) {
-           // We will draw the "head" separately to not mess up the path stroke
-        }
       }
       context.stroke();
 
-      // Draw the "head" dot
+      // Highlight the current "head"
       if (currentIterations > 0) {
         const lastAngle = currentIterations;
         const headX = centerX + radius * Math.cos(lastAngle);
         const headY = centerY + radius * Math.sin(lastAngle);
 
+        // Draw the connecting line from previous to current brighter
+        if (currentIterations > 1) {
+            const prevAngle = currentIterations - 1;
+            const pX = centerX + radius * Math.cos(prevAngle);
+            const pY = centerY + radius * Math.sin(prevAngle);
+            
+            context.beginPath();
+            context.moveTo(pX, pY);
+            context.lineTo(headX, headY);
+            context.strokeStyle = '#ffffff';
+            context.lineWidth = 2;
+            context.stroke();
+        }
+
+        // The Point
         context.fillStyle = '#ffffff';
         context.beginPath();
-        context.arc(headX, headY, 3, 0, Math.PI * 2);
+        context.arc(headX, headY, 4, 0, Math.PI * 2);
         context.fill();
-        
-        // Draw a glow around the head
-        context.shadowBlur = 10;
-        context.shadowColor = "white";
-        context.fill();
-        context.shadowBlur = 0;
       }
     };
 
-    // Initial sizing
     updateSize();
-
-    // Attach resize listener
     window.addEventListener('resize', updateSize);
-    
-    return () => {
-      window.removeEventListener('resize', updateSize);
-    };
-  }, [progress]); // Re-run effect when progress changes
+    return () => window.removeEventListener('resize', updateSize);
+  }, [progress]);
 
   return (
     <div ref={containerRef} className="flex items-center justify-center w-full h-full relative">
-        {/* Center Pi Symbol - Fades out as complexity grows */}
-        <div 
-            className="absolute pointer-events-none select-none transition-opacity duration-500"
-            style={{ opacity: Math.max(0, 1 - progress * 3) }}
-        >
-            <span className="text-6xl md:text-9xl font-serif text-white opacity-80">π</span>
-        </div>
         <canvas ref={canvasRef} className="z-10" />
     </div>
   );

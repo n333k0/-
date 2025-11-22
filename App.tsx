@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import PiVisualizer from './components/PiVisualizer';
 import Menu from './components/Menu';
 
@@ -6,62 +6,41 @@ function App() {
   const [progress, setProgress] = useState(0);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   
-  // We need a reference to the scroll container to calculate progress
-  // In this implementation, we use the window scroll
   useEffect(() => {
     const handleScroll = () => {
       const scrollY = window.scrollY;
       const windowHeight = window.innerHeight;
       const documentHeight = document.body.scrollHeight;
       
-      // Calculate how far we've scrolled. 
-      // We want the animation to complete when we are near the bottom.
       const maxScroll = documentHeight - windowHeight;
       
       if (maxScroll <= 0) {
-        setProgress(1); // If no scroll, just show full
+        setProgress(1);
         return;
       }
 
       const rawProgress = scrollY / maxScroll;
-      // Clamp between 0 and 1
       const clamped = Math.min(Math.max(rawProgress, 0), 1);
       setProgress(clamped);
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
-    // Initial check
     handleScroll();
 
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   return (
-    // Container has a large height to enable scrolling
-    <div className="relative w-full min-h-[400vh] bg-black selection:bg-white selection:text-black">
+    <div className="relative w-full min-h-[400vh] bg-black font-mono selection:bg-white selection:text-black">
       
-      {/* Fixed Overlay for Header & Menu Button */}
-      <header className="fixed top-0 left-0 w-full z-40 p-6 flex justify-between items-start mix-blend-difference text-white pointer-events-none">
-        <div className="max-w-xs pointer-events-auto">
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight leading-tight">
-            Visual demonstration of why <span className="font-serif italic">Pi (π)</span> is irrational
-          </h1>
-          <p className="mt-2 text-sm text-gray-400 opacity-80">
-            Scroll to trace the infinite path
-          </p>
-        </div>
-
-        {/* The Menu Dot / Button */}
+      {/* Fixed Overlay for Menu Button */}
+      <header className="fixed top-0 right-0 p-8 z-40 mix-blend-difference">
         <button 
             onClick={() => setIsMenuOpen(true)}
-            className="pointer-events-auto group relative w-12 h-12 flex items-center justify-center"
+            className="group flex items-center justify-center w-12 h-12 border border-white bg-black hover:bg-white hover:text-black transition-colors duration-300"
             aria-label="Open Menu"
         >
-           {/* The "Point" visually representing the menu trigger */}
-           <div className="w-3 h-3 bg-white rounded-full group-hover:scale-150 transition-transform duration-300 shadow-[0_0_15px_rgba(255,255,255,0.8)]"></div>
-           
-           {/* Ripple effect hint */}
-           <div className="absolute inset-0 border border-white/30 rounded-full scale-0 group-hover:scale-100 transition-transform duration-500 opacity-0 group-hover:opacity-100"></div>
+           <div className="w-2 h-2 bg-current"></div>
         </button>
       </header>
 
@@ -73,17 +52,9 @@ function App() {
       {/* Menu Overlay */}
       <Menu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
 
-      {/* Scroll Indicators / Content at various depths to guide user */}
-      <div className="absolute top-[20vh] w-full text-center pointer-events-none z-0 opacity-20">
-          <p className="text-white/50 text-sm tracking-[0.5em] uppercase">Begin the walk</p>
-      </div>
-
-      <div className="absolute top-[150vh] w-full text-center pointer-events-none z-0 opacity-20">
-          <p className="text-white/50 text-sm tracking-[0.5em] uppercase">Filling the void</p>
-      </div>
-
-      <div className="absolute bottom-[10vh] w-full text-center pointer-events-none z-0 opacity-20">
-          <p className="text-white/50 text-sm tracking-[0.5em] uppercase">Never repeating</p>
+      {/* Scroll Indicators / Content at various depths */}
+      <div className="absolute top-[40vh] w-full text-center pointer-events-none z-0 opacity-40 mix-blend-difference">
+          <p className="text-white text-xs tracking-[0.5em] uppercase border-l border-r border-white/20 inline-block px-4 py-2">Scroll to generate</p>
       </div>
 
     </div>
